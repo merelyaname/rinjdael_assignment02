@@ -55,9 +55,22 @@ static const unsigned char r_con[11] = {
 /*
  * Operations used when encrypting a block
  */
+//Helper functions for Galois Field (GF) operations
 // Helper function for GF(2^8) multiplication by 2
 static unsigned char xtime(unsigned char x) {
   return ((x << 1) ^ (((x >> 7) & 1) * 0x1b));
+}
+// Helper function to multiply by higher powers of 2 in GF(2^8)
+static unsigned char multiply(unsigned char x, unsigned char y) {
+  unsigned char result = 0;
+  for (int i = 0; i < 8; i++) {
+      if (y & 1) {
+          result ^= x;
+      }
+      x = xtime(x);
+      y >>= 1;
+  }
+  return result;
 }
 
 // SubBytes transformation: replaces each byte with its S-box value
@@ -69,23 +82,20 @@ void sub_bytes(unsigned char *state) {
 
 // ShiftRows transformation: cyclically shift rows left
 void shift_rows(unsigned char *state) {
-  unsigned char temp;
-  
+  unsigned char temp;  
   // Row 1: shift left by 1
   temp = state[1];
   state[1] = state[5];
   state[5] = state[9];
   state[9] = state[13];
-  state[13] = temp;
-  
+  state[13] = temp;  
   // Row 2: shift left by 2
   temp = state[2];
   state[2] = state[10];
   state[10] = temp;
   temp = state[6];
   state[6] = state[14];
-  state[14] = temp;
-  
+  state[14] = temp;  
   // Row 3: shift left by 3
   temp = state[3];
   state[3] = state[15];
@@ -94,13 +104,35 @@ void shift_rows(unsigned char *state) {
   state[7] = temp;
 }
 
-void mix_columns(unsigned char *block) {
-  // TODO: Implement me!
+// MixColumns transformation
+void mix_columns(unsigned char *state) {
+  unsigned char tmp[4];  
+  for (int i = 0; i < 4; i++) {
+      int col = i * 4;
+      
+      tmp[0] = state[col];
+      tmp[1] = state[col + 1];
+      tmp[2] = state[col + 2];
+      tmp[3] = state[col + 3];
+      
+      state[col] = xtime(tmp[0]) ^ xtime(tmp[1]) ^ tmp[1] ^ tmp[2] ^ tmp[3];
+      state[col + 1] = tmp[0] ^ xtime(tmp[1]) ^ xtime(tmp[2]) ^ tmp[2] ^ tmp[3];
+      state[col + 2] = tmp[0] ^ tmp[1] ^ xtime(tmp[2]) ^ xtime(tmp[3]) ^ tmp[3];
+      state[col + 3] = xtime(tmp[0]) ^ tmp[0] ^ tmp[1] ^ tmp[2] ^ xtime(tmp[3]);
+  }
 }
 
 /*
  * Operations used when decrypting a block
  */
+// Helper functions for inverse mix columns
+static unsigned char multiply2(unsigned char x) { return xtime(x); }
+static unsigned char multiply3(unsigned char x) { return xtime(x) ^ x; }
+static unsigned char multiply9(unsigned char x) { return xtime(xtime(xtime(x))) ^ x; }
+static unsigned char multiply11(unsigned char x) { return xtime(xtime(xtime(x)) ^ x) ^ x; }
+static unsigned char multiply13(unsigned char x) { return xtime(xtime(xtime(x) ^ x)) ^ x; }
+static unsigned char multiply14(unsigned char x) { return xtime(xtime(xtime(x) ^ x) ^ x); }
+
 // Inverse SubBytes transformation for decryption
 void inv_sub_bytes(unsigned char *state) {
   for (int i = 0; i < 16; i++) {
@@ -111,14 +143,12 @@ void inv_sub_bytes(unsigned char *state) {
 // Inverse ShiftRows transformation for decryption
 void inv_shift_rows(unsigned char *state) {
   unsigned char temp;
-  
   // Row 1: shift right by 1
   temp = state[13];
   state[13] = state[9];
   state[9] = state[5];
   state[5] = state[1];
   state[1] = temp;
-  
   // Row 2: shift right by 2
   temp = state[2];
   state[2] = state[10];
@@ -126,7 +156,6 @@ void inv_shift_rows(unsigned char *state) {
   temp = state[6];
   state[6] = state[14];
   state[14] = temp;
-  
   // Row 3: shift right by 3
   temp = state[7];
   state[7] = state[11];
@@ -135,15 +164,32 @@ void inv_shift_rows(unsigned char *state) {
   state[3] = temp;
 }
 
-void invert_mix_columns(unsigned char *block) {
-  // TODO: Implement me!
+// Inverse MixColumns transformation for decryption
+void inv_mix_columns(unsigned char *state) {
+  unsigned char tmp[4];  
+  for (int i = 0; i < 4; i++) {
+      int col = i * 4;
+      
+      tmp[0] = state[col];
+      tmp[1] = state[col + 1];
+      tmp[2] = state[col + 2];
+      tmp[3] = state[col + 3];
+      
+      state[col] = multiply14(tmp[0]) ^ multiply11(tmp[1]) ^ multiply13(tmp[2]) ^ multiply9(tmp[3]);
+      state[col + 1] = multiply9(tmp[0]) ^ multiply14(tmp[1]) ^ multiply11(tmp[2]) ^ multiply13(tmp[3]);
+      state[col + 2] = multiply13(tmp[0]) ^ multiply9(tmp[1]) ^ multiply14(tmp[2]) ^ multiply11(tmp[3]);
+      state[col + 3] = multiply11(tmp[0]) ^ multiply13(tmp[1]) ^ multiply9(tmp[2]) ^ multiply14(tmp[3]);
+  }
 }
 
 /*
  * This operation is shared between encryption and decryption
  */
-void add_round_key(unsigned char *block, unsigned char *round_key) {
-  // TODO: Implement me!
+// AddRoundKey transformation: XOR the state with the round key
+void add_round_key(unsigned char *state, const unsigned char *round_key) {
+  for (int i = 0; i < 16; i++) {
+      state[i] ^= round_key[i];
+  }
 }
 
 /*
@@ -151,26 +197,131 @@ void add_round_key(unsigned char *block, unsigned char *round_key) {
  * which is a single 128-bit key, it should return a 176-byte
  * vector, containing the 11 round keys one after the other
  */
-unsigned char *expand_key(unsigned char *cipher_key) {
-  // TODO: Implement me!
-  return 0;
+// Key expansion: generate round keys from the cipher key
+unsigned char *expand_key(const unsigned char *key) {
+  // For AES-128, we need 11 round keys (initial + 10 rounds)
+  unsigned char *expanded_key = (unsigned char *)malloc(176); // 11 * 16 bytes
+  
+  // Copy the original key to the first round key
+  memcpy(expanded_key, key, 16);
+  
+  // Variables for the key expansion process
+  unsigned char temp[4];
+  int i = 1;
+  int bytes_generated = 16;
+  
+  // Generate the rest of the round keys
+  while (bytes_generated < 176) {
+      // Copy the last 4 bytes of the previous round key
+      for (int j = 0; j < 4; j++) {
+          temp[j] = expanded_key[bytes_generated - 4 + j];
+      }
+      
+      // Perform the key schedule core once every 16 bytes
+      if (bytes_generated % 16 == 0) {
+          // Rotate word
+          unsigned char k = temp[0];
+          temp[0] = temp[1];
+          temp[1] = temp[2];
+          temp[2] = temp[3];
+          temp[3] = k;
+          
+          // Apply S-box
+          for (int j = 0; j < 4; j++) {
+              temp[j] = s_box[temp[j]];
+          }
+          
+          // XOR with round constant
+          temp[0] ^= r_con[i++];
+      }
+      
+      // XOR with the 4-byte block 16 bytes before
+      for (int j = 0; j < 4; j++) {
+          expanded_key[bytes_generated] = expanded_key[bytes_generated - 16] ^ temp[j];
+          bytes_generated++;
+      }
+  }
+  
+  return expanded_key;
 }
 
 /*
  * The implementations of the functions declared in the
  * header file should go here
  */
-unsigned char *aes_encrypt_block(unsigned char *plaintext, unsigned char *key) {
-  // TODO: Implement me!
-  unsigned char *output =
-      (unsigned char *)malloc(sizeof(unsigned char) * BLOCK_SIZE);
+// Main encryption function
+unsigned char *aes_encrypt_block(const unsigned char *plaintext, const unsigned char *key) {
+  // Allocate memory for the output
+  unsigned char *output = (unsigned char *)malloc(16);
+  if (!output) return NULL;
+  
+  // Create a temporary state array and copy the plaintext into it
+  unsigned char state[16];
+  memcpy(state, plaintext, 16);
+  
+  // Expand the key
+  unsigned char *round_keys = expand_key(key);
+  
+  // Initial round: AddRoundKey
+  add_round_key(state, round_keys);
+  
+  // Main rounds (1-9)
+  for (int round = 1; round < 10; round++) {
+      sub_bytes(state);
+      shift_rows(state);
+      mix_columns(state);
+      add_round_key(state, round_keys + (round * 16));
+  }
+  
+  // Final round (no MixColumns)
+  sub_bytes(state);
+  shift_rows(state);
+  add_round_key(state, round_keys + 160); // 10 * 16 = 160
+  
+  // Copy the result to the output buffer
+  memcpy(output, state, 16);
+  
+  // Free the expanded key
+  free(round_keys);
+  
   return output;
 }
 
-unsigned char *aes_decrypt_block(unsigned char *ciphertext,
-                                 unsigned char *key) {
-  // TODO: Implement me!
-  unsigned char *output =
-      (unsigned char *)malloc(sizeof(unsigned char) * BLOCK_SIZE);
+
+// Main decryption function
+unsigned char *aes_decrypt_block(const unsigned char *ciphertext, const unsigned char *key) {
+  // Allocate memory for the output
+  unsigned char *output = (unsigned char *)malloc(16);
+  if (!output) return NULL;
+  
+  // Create a temporary state array and copy the ciphertext into it
+  unsigned char state[16];
+  memcpy(state, ciphertext, 16);
+  
+  // Expand the key
+  unsigned char *round_keys = expand_key(key);
+  
+  // Initial round: AddRoundKey (with the last round key)
+  add_round_key(state, round_keys + 160);
+  
+  // Main rounds (9-1)
+  for (int round = 9; round > 0; round--) {
+      inv_shift_rows(state);
+      inv_sub_bytes(state);
+      add_round_key(state, round_keys + (round * 16));
+      inv_mix_columns(state);
+  }
+  
+  // Final round
+  inv_shift_rows(state);
+  inv_sub_bytes(state);
+  add_round_key(state, round_keys);
+  
+  // Copy the result to the output buffer
+  memcpy(output, state, 16);
+  
+  // Free the expanded key
+  free(round_keys);
+  
   return output;
 }
