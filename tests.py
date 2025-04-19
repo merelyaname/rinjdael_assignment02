@@ -13,7 +13,7 @@ from python_aes.aes import add_round_key as py_add_round_key
 from python_aes.aes import AES
 
 # Load the C library
-rijndael = ctypes.CDLL('./rijndael.so')
+rijndael = ctypes.CDLL('./rijndael.dll')
 
 # Utility functions to convert between formats
 def to_matrix_row_major(flat_array):
