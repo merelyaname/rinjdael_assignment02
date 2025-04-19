@@ -81,44 +81,84 @@ void sub_bytes(unsigned char *state) {
 }
 
 // ShiftRows transformation: cyclically shift rows left
-void shift_rows(unsigned char *state) {
-  unsigned char temp;  
-  // Row 1: shift left by 1
-  temp = state[1];
-  state[1] = state[5];
-  state[5] = state[9];
-  state[9] = state[13];
-  state[13] = temp;  
-  // Row 2: shift left by 2
-  temp = state[2];
-  state[2] = state[10];
-  state[10] = temp;
-  temp = state[6];
-  state[6] = state[14];
-  state[14] = temp;  
-  // Row 3: shift left by 3
-  temp = state[3];
-  state[3] = state[15];
-  state[15] = state[11];
-  state[11] = state[7];
-  state[7] = temp;
+/* 
+ * ShiftRows transformation - cyclically shifts rows to the left by different offsets
+ * Implementation approach: Uses a temporary array to reorder elements directly
+ * by their target indices rather than sequential swapping.
+ * Conceptually rearranges a 4x4 matrix where each row is shifted:
+ *  - Row 0: No shift
+ *  - Row 1: Left shift by 1
+ *  - Row 2: Left shift by 2
+ *  - Row 3: Left shift by 3
+ */
+ void shift_rows(unsigned char *state) {
+  // Create temporary array to hold transformed state
+  unsigned char temp_state[16];
+  
+  // Apply row shifts by directly placing bytes in their target positions
+  // Row 0: No shift (indices 0,4,8,12 remain unchanged)
+  temp_state[0] = state[0];
+  temp_state[4] = state[4];
+  temp_state[8] = state[8];
+  temp_state[12] = state[12];
+  
+  // Row 1: Shift left by 1 (1→5→9→13→1)
+  temp_state[1] = state[5];   // 1 gets value from 5
+  temp_state[5] = state[9];   // 5 gets value from 9
+  temp_state[9] = state[13];  // 9 gets value from 13
+  temp_state[13] = state[1];  // 13 gets value from 1
+  
+  // Row 2: Shift left by 2 (2→10→2, 6→14→6)
+  temp_state[2] = state[10];  // 2 gets value from 10
+  temp_state[10] = state[2];  // 10 gets value from 2
+  temp_state[6] = state[14];  // 6 gets value from 14
+  temp_state[14] = state[6];  // 14 gets value from 6
+  
+  // Row 3: Shift left by 3 (3→7→11→15→3)
+  temp_state[3] = state[7];   // 3 gets value from 7
+  temp_state[7] = state[11];  // 7 gets value from 11
+  temp_state[11] = state[15]; // 11 gets value from 15
+  temp_state[15] = state[3];  // 15 gets value from 3
+  
+  // Copy transformed state back to original array
+  memcpy(state, temp_state, 16);
 }
 
 // MixColumns transformation
+/*
+ * Mix a single column in the state matrix using Galois Field multiplication
+ * Each output byte is a linear combination of all input bytes in the column
+ * This provides diffusion in the cipher by ensuring each byte affects multiple bytes
+ */
+ void mix_single_column(unsigned char *column) {
+  // Store original column values before transformation
+  unsigned char a = column[0]; 
+  unsigned char b = column[1];
+  unsigned char c = column[2];
+  unsigned char d = column[3];
+  
+  // Apply the fixed matrix multiplication in GF(2^8)
+  // This matrix multiplication ensures that each output byte depends on all input bytes
+  // Using the formula defined in the AES specification:
+  //   [ 2 3 1 1 ]   [ a ]
+  //   [ 1 2 3 1 ] × [ b ]
+  //   [ 1 1 2 3 ]   [ c ]
+  //   [ 3 1 1 2 ]   [ d ]
+  
+  column[0] = xtime(a) ^ xtime(b) ^ b ^ c ^ d;        // 2a + 3b + c + d
+  column[1] = a ^ xtime(b) ^ xtime(c) ^ c ^ d;        // a + 2b + 3c + d
+  column[2] = a ^ b ^ xtime(c) ^ xtime(d) ^ d;        // a + b + 2c + 3d
+  column[3] = xtime(a) ^ a ^ b ^ c ^ xtime(d);        // 3a + b + c + 2d
+}
+// MixColumns transformation: applies mix_single_column to each column of the state
 void mix_columns(unsigned char *state) {
-  unsigned char tmp[4];  
-  for (int i = 0; i < 4; i++) {
-      int col = i * 4;
-      
-      tmp[0] = state[col];
-      tmp[1] = state[col + 1];
-      tmp[2] = state[col + 2];
-      tmp[3] = state[col + 3];
-      
-      state[col] = xtime(tmp[0]) ^ xtime(tmp[1]) ^ tmp[1] ^ tmp[2] ^ tmp[3];
-      state[col + 1] = tmp[0] ^ xtime(tmp[1]) ^ xtime(tmp[2]) ^ tmp[2] ^ tmp[3];
-      state[col + 2] = tmp[0] ^ tmp[1] ^ xtime(tmp[2]) ^ xtime(tmp[3]) ^ tmp[3];
-      state[col + 3] = xtime(tmp[0]) ^ tmp[0] ^ tmp[1] ^ tmp[2] ^ xtime(tmp[3]);
+  // Process each of the 4 columns independently
+  for (int col = 0; col < 4; col++) {
+    // Create a pointer to the current column (offset by column index * 4)
+    unsigned char *current_column = &state[col * 4];
+    
+    // Apply the mixing operation to this column
+    mix_single_column(current_column);
   }
 }
 
@@ -141,44 +181,79 @@ void inv_sub_bytes(unsigned char *state) {
 }
 
 // Inverse ShiftRows transformation for decryption
-void inv_shift_rows(unsigned char *state) {
-  unsigned char temp;
-  // Row 1: shift right by 1
-  temp = state[13];
-  state[13] = state[9];
-  state[9] = state[5];
-  state[5] = state[1];
-  state[1] = temp;
-  // Row 2: shift right by 2
-  temp = state[2];
-  state[2] = state[10];
-  state[10] = temp;
-  temp = state[6];
-  state[6] = state[14];
-  state[14] = temp;
-  // Row 3: shift right by 3
-  temp = state[7];
-  state[7] = state[11];
-  state[11] = state[15];
-  state[15] = state[3];
-  state[3] = temp;
+/*
+ * InvShiftRows transformation - cyclically shifts rows to the right to undo ShiftRows
+ * Implementation approach: Uses a direct mapping method for clarity instead of sequential shifts
+ * Conceptually rearranges a 4x4 matrix where each row is shifted right:
+ *  - Row 0: No shift
+ *  - Row 1: Right shift by 1
+ *  - Row 2: Right shift by 2
+ *  - Row 3: Right shift by 3
+ */
+ void invert_shift_rows(unsigned char *state) {
+  // Create a temporary buffer to store transformed state
+  unsigned char temp_state[16];
+  
+  // Map each byte to its original position before ShiftRows
+  
+  // Row 0: No shift (bytes at positions 0,4,8,12 stay in place)
+  temp_state[0] = state[0];
+  temp_state[4] = state[4];
+  temp_state[8] = state[8];
+  temp_state[12] = state[12];
+  
+  // Row 1: Right shift by 1 (13→9→5→1→13)
+  temp_state[1] = state[13];  // 1 gets value from 13
+  temp_state[5] = state[1];   // 5 gets value from 1
+  temp_state[9] = state[5];   // 9 gets value from 5
+  temp_state[13] = state[9];  // 13 gets value from 9
+  
+  // Row 2: Right shift by 2 (2↔10, 6↔14)
+  temp_state[2] = state[10];  // 2 gets value from 10
+  temp_state[10] = state[2];  // 10 gets value from 2
+  temp_state[6] = state[14];  // 6 gets value from 14
+  temp_state[14] = state[6];  // 14 gets value from 6
+  
+  // Row 3: Right shift by 3 (15→11→7→3→15)
+  temp_state[3] = state[15];  // 3 gets value from 15
+  temp_state[7] = state[3];   // 7 gets value from 3
+  temp_state[11] = state[7];  // 11 gets value from 7
+  temp_state[15] = state[11]; // 15 gets value from 11
+  
+  // Copy transformed state back to original buffer
+  memcpy(state, temp_state, 16);
 }
 
 // Inverse MixColumns transformation for decryption
-void inv_mix_columns(unsigned char *state) {
-  unsigned char tmp[4];  
-  for (int i = 0; i < 4; i++) {
-      int col = i * 4;
-      
-      tmp[0] = state[col];
-      tmp[1] = state[col + 1];
-      tmp[2] = state[col + 2];
-      tmp[3] = state[col + 3];
-      
-      state[col] = multiply14(tmp[0]) ^ multiply11(tmp[1]) ^ multiply13(tmp[2]) ^ multiply9(tmp[3]);
-      state[col + 1] = multiply9(tmp[0]) ^ multiply14(tmp[1]) ^ multiply11(tmp[2]) ^ multiply13(tmp[3]);
-      state[col + 2] = multiply13(tmp[0]) ^ multiply9(tmp[1]) ^ multiply14(tmp[2]) ^ multiply11(tmp[3]);
-      state[col + 3] = multiply11(tmp[0]) ^ multiply13(tmp[1]) ^ multiply9(tmp[2]) ^ multiply14(tmp[3]);
+/*
+ * InvertMixColumns transformation - reverses the MixColumns operation
+ * Implementation approach: Uses matrix multiplication in GF(2^8) with the inverse matrix
+ * The inverse matrix requires multiplications by larger constants (9, 11, 13, 14)
+ * which are implemented as separate helper functions
+ */
+ void invert_mix_columns(unsigned char *state) {
+  // Process each column independently
+  for (int col = 0; col < 4; col++) {
+    // Calculate starting index for this column
+    int col_idx = col * 4;
+    
+    // Store original column values before transformation
+    unsigned char s0 = state[col_idx];
+    unsigned char s1 = state[col_idx + 1];
+    unsigned char s2 = state[col_idx + 2];
+    unsigned char s3 = state[col_idx + 3];
+    
+    // Apply the inverse matrix multiplication in GF(2^8)
+    // This undoes the MixColumns transformation using the inverse matrix:
+    //   [ 14 11 13  9 ]   [ s0 ]
+    //   [  9 14 11 13 ] × [ s1 ]
+    //   [ 13  9 14 11 ]   [ s2 ]
+    //   [ 11 13  9 14 ]   [ s3 ]
+    
+    state[col_idx]     = times14(s0) ^ times11(s1) ^ times13(s2) ^ times9(s3);
+    state[col_idx + 1] = times9(s0)  ^ times14(s1) ^ times11(s2) ^ times13(s3);
+    state[col_idx + 2] = times13(s0) ^ times9(s1)  ^ times14(s2) ^ times11(s3);
+    state[col_idx + 3] = times11(s0) ^ times13(s1) ^ times9(s2)  ^ times14(s3);
   }
 }
 
