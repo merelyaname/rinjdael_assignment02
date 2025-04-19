@@ -6,6 +6,7 @@ import sys, os
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 import random
 import platform
+import subprocess
 
 # Import the Python AES functions for comparison
 try:
@@ -22,14 +23,33 @@ except ImportError:
     from aes import AES, bytes2matrix, matrix2bytes
 
 # Load the compiled C library
+# Determine platform-specific library name
 if platform.system() == "Windows":
     lib_name = "rijndael.dll"
 elif platform.system() == "Darwin":
     lib_name = "rijndael.dylib"
 else:
-    lib_name = "rijndael.so"  # Linux
-
-rijndael = ctypes.CDLL(f"./{lib_name}")
+    lib_name = "rijndael.so"
+# Auto-compile the C file if the shared library doesn't exist
+if not os.path.exists(lib_name):
+    print(f"[INFO] {lib_name} not found — compiling rijndael.c")
+    try:
+        if platform.system() == "Windows":
+            compile_cmd = ["gcc", "-shared", "-o", "rijndael.dll", "rijndael.c"]
+        else:
+            # For Linux and macOS
+            compile_cmd = ["gcc", "-shared", "-fPIC", "-o", lib_name, "rijndael.c"]
+        subprocess.run(compile_cmd, check=True)
+        print(f"[INFO] Compilation successful.")
+    except subprocess.CalledProcessError:
+        print(f"[ERROR] Failed to compile rijndael.c.")
+        sys.exit(1)
+# Now load the shared library
+try:
+    rijndael = ctypes.CDLL(f"./{lib_name}")
+except OSError as e:
+    print(f"[ERROR] Failed to load shared library: {e}")
+    sys.exit(1)
 
 # Function to expand key in Python
 def py_expand_key(key_bytes):
