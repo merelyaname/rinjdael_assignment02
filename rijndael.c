@@ -250,10 +250,10 @@ void inv_sub_bytes(unsigned char *state) {
     //   [ 13  9 14 11 ]   [ s2 ]
     //   [ 11 13  9 14 ]   [ s3 ]
     
-    state[col_idx]     = times14(s0) ^ times11(s1) ^ times13(s2) ^ times9(s3);
-    state[col_idx + 1] = times9(s0)  ^ times14(s1) ^ times11(s2) ^ times13(s3);
-    state[col_idx + 2] = times13(s0) ^ times9(s1)  ^ times14(s2) ^ times11(s3);
-    state[col_idx + 3] = times11(s0) ^ times13(s1) ^ times9(s2)  ^ times14(s3);
+    state[col_idx]     = multiply14(s0) ^ multiply11(s1) ^ multiply13(s2) ^ multiply9(s3);
+state[col_idx + 1] = multiply9(s0)  ^ multiply14(s1) ^ multiply11(s2) ^ multiply13(s3);
+state[col_idx + 2] = multiply13(s0) ^ multiply9(s1)  ^ multiply14(s2) ^ multiply11(s3);
+state[col_idx + 3] = multiply11(s0) ^ multiply13(s1) ^ multiply9(s2)  ^ multiply14(s3);
   }
 }
 
