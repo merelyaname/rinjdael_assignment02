@@ -190,7 +190,7 @@ void inv_sub_bytes(unsigned char *state) {
  *  - Row 2: Right shift by 2
  *  - Row 3: Right shift by 3
  */
- void invert_shift_rows(unsigned char *state) {
+ void inv_shift_rows(unsigned char *state) {
   // Create a temporary buffer to store transformed state
   unsigned char temp_state[16];
   
@@ -231,7 +231,7 @@ void inv_sub_bytes(unsigned char *state) {
  * The inverse matrix requires multiplications by larger constants (9, 11, 13, 14)
  * which are implemented as separate helper functions
  */
- void invert_mix_columns(unsigned char *state) {
+ void inv_mix_columns(unsigned char *state) {
   // Process each column independently
   for (int col = 0; col < 4; col++) {
     // Calculate starting index for this column
@@ -251,9 +251,9 @@ void inv_sub_bytes(unsigned char *state) {
     //   [ 11 13  9 14 ]   [ s3 ]
     
     state[col_idx]     = multiply14(s0) ^ multiply11(s1) ^ multiply13(s2) ^ multiply9(s3);
-state[col_idx + 1] = multiply9(s0)  ^ multiply14(s1) ^ multiply11(s2) ^ multiply13(s3);
-state[col_idx + 2] = multiply13(s0) ^ multiply9(s1)  ^ multiply14(s2) ^ multiply11(s3);
-state[col_idx + 3] = multiply11(s0) ^ multiply13(s1) ^ multiply9(s2)  ^ multiply14(s3);
+    state[col_idx + 1] = multiply9(s0)  ^ multiply14(s1) ^ multiply11(s2) ^ multiply13(s3);
+    state[col_idx + 2] = multiply13(s0) ^ multiply9(s1)  ^ multiply14(s2) ^ multiply11(s3);
+    state[col_idx + 3] = multiply11(s0) ^ multiply13(s1) ^ multiply9(s2)  ^ multiply14(s3);
   }
 }
 
