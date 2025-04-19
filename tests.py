@@ -65,7 +65,16 @@ def test_function(func_name, c_func, py_func, conversions=True):
         py_result = from_matrix_row_major(py_input) if conversions else py_input
         
         # Prepare C input
-        c_input = ctypes.create_string_buffer(bytes(input_data), 16)
+        if func_name in ["shift_rows", "inv_shift_rows"]:
+            # For shift_rows and inv_shift_rows, we need to transpose the matrix
+            # to account for different row/column interpretation
+            c_input_data = bytearray(16)
+            for r in range(4):
+                for c in range(4):
+                    c_input_data[c*4 + r] = input_data[r*4 + c]
+            c_input = ctypes.create_string_buffer(bytes(c_input_data), 16)
+        else:
+            c_input = ctypes.create_string_buffer(bytes(input_data), 16)
         
         # Run C function
         if func_name == "add_round_key":
@@ -74,8 +83,16 @@ def test_function(func_name, c_func, py_func, conversions=True):
         else:
             c_func(c_input)
         
-        # Convert C result to Python bytes
-        c_result = bytearray(c_input.raw)
+        # Get C result and convert if needed
+        if func_name in ["shift_rows", "inv_shift_rows"]:
+            # Transpose back for comparison
+            c_result_raw = bytearray(c_input.raw)
+            c_result = bytearray(16)
+            for r in range(4):
+                for c in range(4):
+                    c_result[r*4 + c] = c_result_raw[c*4 + r]
+        else:
+            c_result = bytearray(c_input.raw)
         
         # Compare results
         if py_result == c_result:
@@ -130,11 +147,24 @@ def test_encrypt_block():
         aes = AES(key)
         py_result = aes.encrypt_block(plaintext)
         
-        # Run C encryption
-        c_plaintext = ctypes.create_string_buffer(bytes(plaintext), 16)
+        # Prepare input for C - need to reformat due to row/column major differences
+        c_plaintext_data = bytearray(16)
+        for r in range(4):
+            for c in range(4):
+                c_plaintext_data[c*4 + r] = plaintext[r*4 + c]
+                
+        c_plaintext = ctypes.create_string_buffer(bytes(c_plaintext_data), 16)
         c_key = ctypes.create_string_buffer(bytes(key), 16)
+        
+        # Run C encryption
         c_result_ptr = rijndael.aes_encrypt_block(c_plaintext, c_key)
-        c_result = bytearray(c_result_ptr.contents)
+        c_result_raw = bytearray(c_result_ptr.contents)
+        
+        # Convert C result back to row-major for comparison
+        c_result = bytearray(16)
+        for r in range(4):
+            for c in range(4):
+                c_result[r*4 + c] = c_result_raw[c*4 + r]
         
         # Compare results
         if py_result == c_result:
@@ -161,11 +191,23 @@ def test_decrypt_block():
         aes = AES(key)
         ciphertext = aes.encrypt_block(plaintext)
         
+        # Convert ciphertext to column-major for C
+        c_ciphertext_data = bytearray(16)
+        for r in range(4):
+            for c in range(4):
+                c_ciphertext_data[c*4 + r] = ciphertext[r*4 + c]
+        
         # Decrypt with C
-        c_ciphertext = ctypes.create_string_buffer(bytes(ciphertext), 16)
+        c_ciphertext = ctypes.create_string_buffer(bytes(c_ciphertext_data), 16)
         c_key = ctypes.create_string_buffer(bytes(key), 16)
         c_result_ptr = rijndael.aes_decrypt_block(c_ciphertext, c_key)
-        c_result = bytearray(c_result_ptr.contents)
+        c_result_raw = bytearray(c_result_ptr.contents)
+        
+        # Convert result back to row-major
+        c_result = bytearray(16)
+        for r in range(4):
+            for c in range(4):
+                c_result[r*4 + c] = c_result_raw[c*4 + r]
         
         # Compare results
         if plaintext == c_result:
