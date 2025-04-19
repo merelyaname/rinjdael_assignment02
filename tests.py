@@ -1,17 +1,16 @@
 import ctypes
 import os
 import sys
+# Add the path to the Python AES implementation
+sys.path.append(os.path.join(os.path.dirname(__file__), "python_aes"))
 import random
 
-# Add the path to the Python AES implementation
-sys.path.append(os.path.join(os.path.dirname(__file__), "python-aes"))
-
 # Import the Python AES functions for comparison
-from aes import sub_bytes as py_sub_bytes, inv_sub_bytes as py_inv_sub_bytes
-from aes import shift_rows as py_shift_rows, inv_shift_rows as py_inv_shift_rows
-from aes import mix_columns as py_mix_columns, inv_mix_columns as py_inv_mix_columns
-from aes import add_round_key as py_add_round_key
-from aes import AES
+from python_aes.aes import sub_bytes as py_sub_bytes, inv_sub_bytes as py_inv_sub_bytes
+from python_aes.aes import shift_rows as py_shift_rows, inv_shift_rows as py_inv_shift_rows
+from python_aes.aes import mix_columns as py_mix_columns, inv_mix_columns as py_inv_mix_columns
+from python_aes.aes import add_round_key as py_add_round_key
+from python_aes.aes import AES
 
 # Load the C library
 rijndael = ctypes.CDLL('./rijndael.so')
