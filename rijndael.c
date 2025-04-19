@@ -92,36 +92,30 @@ void sub_bytes(unsigned char *state) {
  *  - Row 3: Left shift by 3
  */
  void shift_rows(unsigned char *state) {
-  // Create temporary array to hold transformed state
-  unsigned char temp_state[16];
+  // Create temporary variable to hold transformed state
+  unsigned char temp;
   
-  // Apply row shifts by directly placing bytes in their target positions
-  // Row 0: No shift (indices 0,4,8,12 remain unchanged)
-  temp_state[0] = state[0];
-  temp_state[4] = state[4];
-  temp_state[8] = state[8];
-  temp_state[12] = state[12];
+  // Row 1: Shift left by 1
+  temp = state[1];
+  state[1] = state[5];
+  state[5] = state[9];
+  state[9] = state[13];
+  state[13] = temp;
   
-  // Row 1: Shift left by 1 (1→5→9→13→1)
-  temp_state[1] = state[5];   // 1 gets value from 5
-  temp_state[5] = state[9];   // 5 gets value from 9
-  temp_state[9] = state[13];  // 9 gets value from 13
-  temp_state[13] = state[1];  // 13 gets value from 1
+  // Row 2: shift left by 2
+  temp = state[2];
+  state[2] = state[10];
+  state[10] = temp;
+  temp = state[6];
+  state[6] = state[14];
+  state[14] = temp;
   
-  // Row 2: Shift left by 2 (2→10→2, 6→14→6)
-  temp_state[2] = state[10];  // 2 gets value from 10
-  temp_state[10] = state[2];  // 10 gets value from 2
-  temp_state[6] = state[14];  // 6 gets value from 14
-  temp_state[14] = state[6];  // 14 gets value from 6
-  
-  // Row 3: Shift left by 3 (3→7→11→15→3)
-  temp_state[3] = state[7];   // 3 gets value from 7
-  temp_state[7] = state[11];  // 7 gets value from 11
-  temp_state[11] = state[15]; // 11 gets value from 15
-  temp_state[15] = state[3];  // 15 gets value from 3
-  
-  // Copy transformed state back to original array
-  memcpy(state, temp_state, 16);
+  // Row 3: shift left by 3 (right by 1)
+  temp = state[15];
+  state[15] = state[11];
+  state[11] = state[7];
+  state[7] = state[3];
+  state[3] = temp;
 }
 
 // MixColumns transformation
@@ -192,36 +186,30 @@ void inv_sub_bytes(unsigned char *state) {
  */
  void inv_shift_rows(unsigned char *state) {
   // Create a temporary buffer to store transformed state
-  unsigned char temp_state[16];
+  unsigned char temp;
   
   // Map each byte to its original position before ShiftRows
-  
-  // Row 0: No shift (bytes at positions 0,4,8,12 stay in place)
-  temp_state[0] = state[0];
-  temp_state[4] = state[4];
-  temp_state[8] = state[8];
-  temp_state[12] = state[12];
-  
-  // Row 1: Right shift by 1 (13→9→5→1→13)
-  temp_state[1] = state[13];  // 1 gets value from 13
-  temp_state[5] = state[1];   // 5 gets value from 1
-  temp_state[9] = state[5];   // 9 gets value from 5
-  temp_state[13] = state[9];  // 13 gets value from 9
-  
-  // Row 2: Right shift by 2 (2↔10, 6↔14)
-  temp_state[2] = state[10];  // 2 gets value from 10
-  temp_state[10] = state[2];  // 10 gets value from 2
-  temp_state[6] = state[14];  // 6 gets value from 14
-  temp_state[14] = state[6];  // 14 gets value from 6
-  
-  // Row 3: Right shift by 3 (15→11→7→3→15)
-  temp_state[3] = state[15];  // 3 gets value from 15
-  temp_state[7] = state[3];   // 7 gets value from 3
-  temp_state[11] = state[7];  // 11 gets value from 7
-  temp_state[15] = state[11]; // 15 gets value from 11
-  
-  // Copy transformed state back to original buffer
-  memcpy(state, temp_state, 16);
+    // Row 1: shift right by 1
+    temp = state[13];
+    state[13] = state[9];
+    state[9] = state[5];
+    state[5] = state[1];
+    state[1] = temp;
+
+    // Row 2: shift right by 2
+    temp = state[2];
+    state[2] = state[10];
+    state[10] = temp;
+    temp = state[6];
+    state[6] = state[14];
+    state[14] = temp;
+
+    // Row 3: shift right by 3 (left by 1)
+    temp = state[3];
+    state[3] = state[7];
+    state[7] = state[11];
+    state[11] = state[15];
+    state[15] = temp;
 }
 
 // Inverse MixColumns transformation for decryption
