@@ -5,6 +5,7 @@ import sys
 import sys, os
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 import random
+import platform
 
 # Import the Python AES functions for comparison
 try:
@@ -21,7 +22,14 @@ except ImportError:
     from aes import AES, bytes2matrix, matrix2bytes
 
 # Load the compiled C library
-rijndael = ctypes.CDLL('./rijndael.dll')
+if platform.system() == "Windows":
+    lib_name = "rijndael.dll"
+elif platform.system() == "Darwin":
+    lib_name = "rijndael.dylib"
+else:
+    lib_name = "rijndael.so"  # Linux
+
+rijndael = ctypes.CDLL(f"./{lib_name}")
 
 # Function to expand key in Python
 def py_expand_key(key_bytes):
